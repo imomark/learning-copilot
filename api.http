@@ -52,3 +52,13 @@ Content-Type: application/json
   "focus": "fastapi",
   "k": 5
 }
+
+### RAG quiz
+POST {{baseUrl}}/rag/quiz
+Content-Type: application/json
+
+{
+  "focus": "kafka architecture",
+  "k": 5,
+  "num_questions": 5
+}

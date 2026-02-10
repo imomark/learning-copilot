@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from app.core.config import settings
 from app.llm.gemini import get_gemini_llm
 from app.rag.prompt import build_rag_prompt
+from app.rag.quiz_prompt import build_quiz_prompt
 from app.rag.summarize_prompt import build_summarize_prompt
 from app.vectorstore.qdrant_store import QdrantStore
 from pydantic import BaseModel
@@ -18,6 +19,12 @@ class AskRequest(BaseModel):
 class SummarizeRequest(BaseModel):
     focus: str | None = None
     k: int = 5
+
+class QuizRequest(BaseModel):
+    focus: str | None = None   # e.g., "Kafka architecture"
+    k: int = 5                 # how many chunks to retrieve
+    num_questions: int = 5     # how many questions to generate
+
 
 app = FastAPI(title="AI Learning Copilot")
 # create one global store instance for now
@@ -172,6 +179,43 @@ def rag_summarize(req: SummarizeRequest):
         "citations": citations
     }
 
+@app.post("/rag/quiz")
+def rag_quiz(req: QuizRequest):
+    # 1. Choose retrieval query
+    query = req.focus if req.focus else "Generate a quiz from the main topics of the documents"
+
+    # 2. Retrieve relevant chunks
+    results = vector_store.search(query=query, k=req.k)
+
+    if not results:
+        return {
+            "quiz": "I don't have any knowledge yet. Please ingest some documents first.",
+            "citations": []
+        }
+
+    # 3. Build context
+    context_chunks = [doc.page_content for doc in results]
+
+    # 4. Build prompt
+    prompt = build_quiz_prompt(context_chunks, req.focus, req.num_questions)
+
+    # 5. Call Gemini
+    llm = get_gemini_llm()
+    response = llm.invoke(prompt)
+
+    # 6. Build structured citations
+    citations = []
+    for doc in results:
+        citations.append({
+            "chunk_id": doc.metadata.get("chunk_id"),
+            "source": doc.metadata.get("source"),
+            "page": doc.metadata.get("page"),
+        })
+
+    return {
+        "quiz": response.content,
+        "citations": citations
+    }
 
 
 
