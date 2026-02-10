@@ -85,7 +85,7 @@ def rag_ask(req: AskRequest):
         return {
             "question": req.question,
             "answer": "I don't have any knowledge yet. Please ingest some documents first.",
-            "sources": []
+            "citations": []
         }
 
     # 2. Extract text for context
@@ -98,13 +98,19 @@ def rag_ask(req: AskRequest):
     llm = get_gemini_llm()
     response = llm.invoke(prompt)
 
-    # 5. Return answer + sources
+    # 5. Build structured citations
+    citations = []
+    for doc in results:
+        citations.append({
+            "chunk_id": doc.metadata.get("chunk_id"),
+            "source": doc.metadata.get("source"),
+            "page": doc.metadata.get("page"),
+        })
+
     return {
         "question": req.question,
         "answer": response.content,
-        "sources": [
-            doc.metadata for doc in results
-        ]
+        "citations": citations
     }
 
 @app.post("/ingest/pdf")

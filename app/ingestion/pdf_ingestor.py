@@ -27,9 +27,18 @@ class PDFIngestor:
             # 3. Split into chunks
             chunks = self.splitter.split_documents(documents)
 
-            # 4. Add metadata (source = filename)
+            import uuid
+
+            # 4. Add metadata (source, chunk_id, page)
             for doc in chunks:
                 doc.metadata["source"] = filename
+                doc.metadata["chunk_id"] = str(uuid.uuid4())
+
+                # LangChain PyPDFLoader usually provides page in metadata
+                if "page" in doc.metadata:
+                    doc.metadata["page"] = doc.metadata.get("page")
+                else:
+                    doc.metadata["page"] = None
 
             # 5. Store in vector DB
             texts = [doc.page_content for doc in chunks]
