@@ -16,3 +16,11 @@ Content-Type: application/json
 {
   "query": "What is Kafka?"
 }
+
+### RAG ask
+POST {{baseUrl}}/rag/ask
+Content-Type: application/json
+
+{
+  "question": "What is Kafka?"
+}

@@ -1,11 +1,16 @@
 from fastapi import FastAPI
 from app.core.config import settings
 from app.llm.gemini import get_gemini_llm
+from app.rag.prompt import build_rag_prompt
 from app.vectorstore.qdrant_store import QdrantStore
 from pydantic import BaseModel
 
 class SearchRequest(BaseModel):
     query: str
+
+class AskRequest(BaseModel):
+    question: str
+
 
 
 app = FastAPI(title="AI Learning Copilot")
@@ -64,4 +69,36 @@ def test_search(req: SearchRequest):
             for doc in results
         ]
     }
+
+@app.post("/rag/ask")
+def rag_ask(req: AskRequest):
+    # 1. Retrieve relevant docs
+    results = vector_store.search(query=req.question, k=3)
+
+    if not results:
+        return {
+            "question": req.question,
+            "answer": "I don't have any knowledge yet. Please ingest some documents first.",
+            "sources": []
+        }
+
+    # 2. Extract text for context
+    context_chunks = [doc.page_content for doc in results]
+
+    # 3. Build prompt
+    prompt = build_rag_prompt(context_chunks, req.question)
+
+    # 4. Call Gemini
+    llm = get_gemini_llm()
+    response = llm.invoke(prompt)
+
+    # 5. Return answer + sources
+    return {
+        "question": req.question,
+        "answer": response.content,
+        "sources": [
+            doc.metadata for doc in results
+        ]
+    }
+
 
