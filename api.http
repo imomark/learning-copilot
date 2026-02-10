@@ -112,3 +112,19 @@ Content-Type: application/json
 
 ### RAG test-me session weak areas
 GET {{baseUrl}}/rag/test-me/session/22ead380-e414-488f-97b5-e4b361d33bd1/weak-areas
+
+### Web ingest
+POST {{baseUrl}}/ingest/web
+Content-Type: application/json
+
+{
+  "url": "https://fastapi.tiangolo.com/"
+}
+
+### RAG ask
+POST {{baseUrl}}/rag/ask
+Content-Type: application/json
+
+{
+  "question": "What is this document about?"
+}
