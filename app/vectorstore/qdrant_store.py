@@ -5,6 +5,8 @@ from langchain_qdrant import QdrantVectorStore
 from app.embeddings.gemini_embeddings import get_embedding_model
 from qdrant_client.http import models
 from qdrant_client.models import Filter, FieldCondition, MatchValue
+import math
+from typing import List
 
 
 class QdrantStore:
@@ -65,12 +67,33 @@ class QdrantStore:
         except Exception:
             return 0
 
-    def search(self, query: str, k: int = 3):
+    def search(self, query: str, k: int = 5):
         if self.store is None:
             return []
 
-        results = self.store.similarity_search(query, k=k)
-        return results
+        # 1) Expand candidates (fetch more than needed)
+        candidate_k = max(20, k * 4)
+
+        # Use vector store to get initial candidates with scores
+        results_with_scores = self.store.similarity_search_with_score(query, k=candidate_k)
+
+        if not results_with_scores:
+            return []
+
+        docs = [doc for doc, _ in results_with_scores]
+
+        # 2) Get embeddings for MMR
+        query_vec = self.embeddings.embed_query(query)
+        doc_vecs = [self.embeddings.embed_query(d.page_content) for d in docs]
+
+        # 3) MMR selection
+        selected_indices = self._mmr_select(query_vec, doc_vecs, k=k, lambda_param=0.6)
+        mmr_docs = [docs[i] for i in selected_indices]
+
+        # 4) Light rerank for lexical relevance
+        reranked = self._light_rerank(mmr_docs, query)
+
+        return reranked
 
     def list_sources(self) -> list[str]:
         sources = set()
@@ -110,6 +133,63 @@ class QdrantStore:
         )
 
         return 1
+
+    def _cosine(self, a: List[float], b: List[float]) -> float:
+        # safety: if vectors are empty
+        if not a or not b:
+            return 0.0
+        dot = sum(x*y for x, y in zip(a, b))
+        na = math.sqrt(sum(x*x for x in a))
+        nb = math.sqrt(sum(x*x for x in b))
+        if na == 0 or nb == 0:
+            return 0.0
+        return dot / (na * nb)
+
+    def _mmr_select(self, query_vec, doc_vecs, k: int, lambda_param: float = 0.5):
+        """
+        MMR: pick documents that are relevant to query and diverse among themselves.
+        """
+        if not doc_vecs:
+            return []
+
+        selected = []
+        candidates = list(range(len(doc_vecs)))
+
+        # First pick: most similar to query
+        sims = [self._cosine(query_vec, v) for v in doc_vecs]
+        first = max(range(len(sims)), key=lambda i: sims[i])
+        selected.append(first)
+        candidates.remove(first)
+
+        while len(selected) < min(k, len(doc_vecs)) and candidates:
+            mmr_scores = []
+            for i in candidates:
+                sim_to_query = self._cosine(query_vec, doc_vecs[i])
+                sim_to_selected = max(
+                    self._cosine(doc_vecs[i], doc_vecs[j]) for j in selected
+                )
+                mmr = lambda_param * sim_to_query - (1 - lambda_param) * sim_to_selected
+                mmr_scores.append((mmr, i))
+
+            _, best = max(mmr_scores, key=lambda x: x[0])
+            selected.append(best)
+            candidates.remove(best)
+
+        return selected
+
+    def _light_rerank(self, docs, query: str):
+        """
+        Simple lexical boost: prefer chunks that mention query terms more.
+        """
+        q_terms = [t.lower() for t in query.split() if t.strip()]
+
+        def score(doc):
+            text = doc.page_content.lower()
+            hits = sum(1 for t in q_terms if t in text)
+            return hits
+
+        return sorted(docs, key=score, reverse=True)
+
 
 
 
