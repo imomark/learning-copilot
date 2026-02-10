@@ -1,0 +1,7 @@
+@baseUrl = http://localhost:8000
+
+### Health check
+GET {{baseUrl}}/health
+
+### LLM ping
+GET {{baseUrl}}/llm/ping
