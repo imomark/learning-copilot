@@ -22,15 +22,22 @@ class SearchRequest(BaseModel):
 
 class AskRequest(BaseModel):
     question: str
+    k: int = 5
+    sources: list[str] | None = None
+
 
 class SummarizeRequest(BaseModel):
     focus: str | None = None
     k: int = 5
+    sources: list[str] | None = None
+
 
 class QuizRequest(BaseModel):
-    focus: str | None = None   # e.g., "Kafka architecture"
-    k: int = 5                 # how many chunks to retrieve
-    num_questions: int = 5     # how many questions to generate
+    focus: str | None = None
+    k: int = 5
+    num_questions: int = 5
+    sources: list[str] | None = None
+
 
 class TestQuestionRequest(BaseModel):
     focus: str | None = None
@@ -47,12 +54,16 @@ class StartSessionRequest(BaseModel):
 class SessionQuestionRequest(BaseModel):
     session_id: str
     k: int = 5
+    sources: list[str] | None = None
+
 
 class SessionAnswerRequest(BaseModel):
     session_id: str
     question: str
     user_answer: str
     k: int = 5
+    sources: list[str] | None = None
+
 
 class WebIngestRequest(BaseModel):
     url: str
@@ -127,7 +138,7 @@ def test_ingest():
 
 @app.post("/vector/test-search")
 def test_search(req: SearchRequest):
-    results = vector_store.search(query=req.query, k=3)
+    results = vector_store.search(query=req.query, k=3, sources=req.sources)
 
     return {
         "query": req.query,
@@ -143,7 +154,7 @@ def test_search(req: SearchRequest):
 @app.post("/rag/ask")
 def rag_ask(req: AskRequest):
     # 1. Retrieve relevant docs
-    results = vector_store.search(query=req.question, k=3)
+    results = vector_store.search(query=req.question, k=3, sources=req.sources)
 
     if not results:
         return {
@@ -201,7 +212,7 @@ def rag_summarize(req: SummarizeRequest):
     # If focus is provided, use it as the retrieval query; otherwise use a generic query
     query = req.focus if req.focus else "Summarize the main topics of the documents"
 
-    results = vector_store.search(query=query, k=req.k)
+    results = vector_store.search(query=query, k=req.k, sources=req.sources)
 
     if not results:
         return {
@@ -239,7 +250,7 @@ def rag_quiz(req: QuizRequest):
     query = req.focus if req.focus else "Generate a quiz from the main topics of the documents"
 
     # 2. Retrieve relevant chunks
-    results = vector_store.search(query=query, k=req.k)
+    results = vector_store.search(query=query, k=req.k, sources=req.sources)
 
     if not results:
         return {
@@ -276,7 +287,7 @@ def rag_quiz(req: QuizRequest):
 def test_me_question(req: TestQuestionRequest):
     query = req.focus if req.focus else "Generate a challenging question from the documents"
 
-    results = vector_store.search(query=query, k=req.k)
+    results = vector_store.search(query=query, k=req.k, sources=req.sources)
 
     if not results:
         return {
@@ -308,7 +319,7 @@ def test_me_question(req: TestQuestionRequest):
 @app.post("/rag/test-me/answer")
 def test_me_answer(req: TestAnswerRequest):
     # Retrieve context again (simple stateless approach)
-    results = vector_store.search(query=req.question, k=req.k)
+    results = vector_store.search(query=req.question, k=req.k, sources=req.sources)
 
     if not results:
         return {
@@ -351,7 +362,7 @@ def session_question(req: SessionQuestionRequest):
         return {"error": "Invalid session_id"}
 
     query = s.focus if s.focus else "Generate a challenging question from the documents"
-    results = vector_store.search(query=query, k=req.k)
+    results = vector_store.search(query=query, k=req.k, sources=req.sources)
 
     if not results:
         return {"question": "No knowledge yet.", "citations": []}
@@ -377,7 +388,7 @@ def session_answer(req: SessionAnswerRequest):
     if not s:
         return {"error": "Invalid session_id"}
 
-    results = vector_store.search(query=req.question, k=req.k)
+    results = vector_store.search(query=req.question, k=req.k, sources=req.sources)
     if not results:
         return {"grade_and_feedback": "No context.", "citations": [], "session_summary": session_store.summary(req.session_id)}
 

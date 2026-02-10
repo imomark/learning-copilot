@@ -153,5 +153,6 @@ POST {{baseUrl}}/rag/ask
 Content-Type: application/json
 
 {
-  "question": "What is this document about?"
+  "question": "What is this document about?",
+  "sources": ["https://www.youtube.com/watch?v=dQw4w9WgXcQ"]
 }

@@ -67,7 +67,7 @@ class QdrantStore:
         except Exception:
             return 0
 
-    def search(self, query: str, k: int = 5):
+    def search(self, query: str, k: int = 5, sources: list[str] | None = None):
         if self.store is None:
             return []
 
@@ -75,7 +75,22 @@ class QdrantStore:
         candidate_k = max(20, k * 4)
 
         # Use vector store to get initial candidates with scores
-        results_with_scores = self.store.similarity_search_with_score(query, k=candidate_k)
+        qdrant_filter = None
+        if sources:
+            conditions = [
+                FieldCondition(
+                    key="metadata.source",
+                    match=MatchValue(value=src),
+                )
+                for src in sources
+            ]
+            qdrant_filter = Filter(should=conditions)
+
+        results_with_scores = self.store.similarity_search_with_score(
+            query,
+            k=candidate_k,
+            filter=qdrant_filter,  # ✅ may be None or a real filter
+        )
 
         if not results_with_scores:
             return []
