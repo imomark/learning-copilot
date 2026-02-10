@@ -4,6 +4,9 @@ from app.llm.gemini import get_gemini_llm
 from app.rag.prompt import build_rag_prompt
 from app.vectorstore.qdrant_store import QdrantStore
 from pydantic import BaseModel
+from fastapi import UploadFile, File
+from app.ingestion.pdf_ingestor import PDFIngestor
+
 
 class SearchRequest(BaseModel):
     query: str
@@ -16,6 +19,9 @@ class AskRequest(BaseModel):
 app = FastAPI(title="AI Learning Copilot")
 # create one global store instance for now
 vector_store = QdrantStore()
+
+pdf_ingestor = PDFIngestor(vector_store)
+
 
 @app.get("/health")
 def health_check():
@@ -100,5 +106,24 @@ def rag_ask(req: AskRequest):
             doc.metadata for doc in results
         ]
     }
+
+@app.post("/ingest/pdf")
+async def ingest_pdf(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".pdf"):
+        return {"error": "Only PDF files are supported"}
+
+    file_bytes = await file.read()
+
+    chunks_added = pdf_ingestor.ingest(file_bytes, file.filename)
+
+    total_vectors = vector_store.count()
+
+    return {
+        "status": "success",
+        "filename": file.filename,
+        "chunks_added": chunks_added,
+        "total_vectors": total_vectors,
+    }
+
 
 

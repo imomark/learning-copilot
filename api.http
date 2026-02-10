@@ -24,3 +24,22 @@ Content-Type: application/json
 {
   "question": "What is Kafka?"
 }
+
+### PDF ingest
+POST {{baseUrl}}/ingest/pdf
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="ai_learning_copilot_architecture.pdf"
+Content-Type: application/pdf
+
+< ./ai_learning_copilot_architecture.pdf
+--boundary--
+
+### RAG ask
+POST {{baseUrl}}/rag/ask
+Content-Type: application/json
+
+{
+  "question": "What is this document about?"
+}
