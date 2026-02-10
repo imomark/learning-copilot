@@ -95,7 +95,7 @@ POST {{baseUrl}}/rag/test-me/session/question
 Content-Type: application/json
 
 {
-  "session_id": "173053d7-c1f4-46d7-b7ed-5e6601d86db0",
+  "session_id": "22ead380-e414-488f-97b5-e4b361d33bd1",
   "k": 5
 }
 
@@ -104,11 +104,11 @@ POST {{baseUrl}}/rag/test-me/session/answer
 Content-Type: application/json
 
 {
-  "session_id": "173053d7-c1f4-46d7-b7ed-5e6601d86db0",
+  "session_id": "22ead380-e414-488f-97b5-e4b361d33bd1",
   "question": "Based on the provided context, how does the FastAPI backend facilitate the routing of user requests to the appropriate processing pipelines within the AI Learning Copilot system?",
   "user_answer": "I dont think it does it",
   "k": 5
 }
 
 ### RAG test-me session weak areas
-GET {{baseUrl}}/rag/test-me/session/173053d7-c1f4-46d7-b7ed-5e6601d86db0/weak-areas
+GET {{baseUrl}}/rag/test-me/session/22ead380-e414-488f-97b5-e4b361d33bd1/weak-areas
