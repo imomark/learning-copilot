@@ -44,3 +44,11 @@ class QdrantStore:
             return info.points_count
         except Exception:
             return 0
+
+    def search(self, query: str, k: int = 3):
+        if self.store is None:
+            return []
+
+        results = self.store.similarity_search(query, k=k)
+        return results
+

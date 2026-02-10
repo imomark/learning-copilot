@@ -2,6 +2,11 @@ from fastapi import FastAPI
 from app.core.config import settings
 from app.llm.gemini import get_gemini_llm
 from app.vectorstore.qdrant_store import QdrantStore
+from pydantic import BaseModel
+
+class SearchRequest(BaseModel):
+    query: str
+
 
 app = FastAPI(title="AI Learning Copilot")
 # create one global store instance for now
@@ -44,3 +49,19 @@ def test_ingest():
         "status": "stored",
         "total_vectors": count
     }
+
+@app.post("/vector/test-search")
+def test_search(req: SearchRequest):
+    results = vector_store.search(query=req.query, k=3)
+
+    return {
+        "query": req.query,
+        "results": [
+            {
+                "content": doc.page_content,
+                "metadata": doc.metadata,
+            }
+            for doc in results
+        ]
+    }
+

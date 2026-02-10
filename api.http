@@ -8,3 +8,11 @@ GET {{baseUrl}}/llm/ping
 
 ### Vector store test ingest
 POST {{baseUrl}}/vector/test-ingest
+
+### Vector store test search
+POST {{baseUrl}}/vector/test-search
+Content-Type: application/json
+
+{
+  "query": "What is Kafka?"
+}
