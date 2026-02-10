@@ -129,6 +129,25 @@ Content-Type: application/json
   "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 }
 
+### List documents
+GET {{baseUrl}}/documents
+
+### Delete document
+DELETE {{baseUrl}}/documents
+Content-Type: application/json
+
+{
+  "source": "https://fastapi.tiangolo.com/"
+}
+
+### Reindex document
+POST {{baseUrl}}/documents/reindex
+Content-Type: application/json
+
+{
+  "source": "https://fastapi.tiangolo.com/"
+}
+
 ### RAG ask
 POST {{baseUrl}}/rag/ask
 Content-Type: application/json

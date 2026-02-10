@@ -4,6 +4,8 @@ from qdrant_client import QdrantClient
 from langchain_qdrant import QdrantVectorStore
 from app.embeddings.gemini_embeddings import get_embedding_model
 from qdrant_client.http import models
+from qdrant_client.models import Filter, FieldCondition, MatchValue
+
 
 class QdrantStore:
     def __init__(self):
@@ -69,4 +71,46 @@ class QdrantStore:
 
         results = self.store.similarity_search(query, k=k)
         return results
+
+    def list_sources(self) -> list[str]:
+        sources = set()
+        offset = None
+
+        while True:
+            points, offset = self.client.scroll(
+                collection_name=self.collection_name,
+                with_payload=True,
+                limit=100,
+                offset=offset,
+            )
+            for p in points:
+                payload = p.payload or {}
+                meta = payload.get("metadata") or {}
+                src = meta.get("source")
+                if src:
+                    sources.add(src)
+            if offset is None:
+                break
+
+        return sorted(list(sources))
+
+    def delete_by_source(self, source: str) -> int:
+        flt = Filter(
+            must=[
+                FieldCondition(
+                    key="metadata.source",
+                    match=MatchValue(value=source),
+                )
+            ]
+        )
+
+        self.client.delete(
+            collection_name=self.collection_name,
+            points_selector=flt,  # ✅ typed filter, not dict
+        )
+
+        return 1
+
+
+
 

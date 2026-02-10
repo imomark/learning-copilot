@@ -60,6 +60,12 @@ class WebIngestRequest(BaseModel):
 class YouTubeIngestRequest(BaseModel):
     url: str
 
+class DeleteDocumentRequest(BaseModel):
+    source: str
+
+class ReindexRequest(BaseModel):
+    source: str
+
 
 
 app = FastAPI(title="AI Learning Copilot")
@@ -452,6 +458,62 @@ def ingest_youtube(req: YouTubeIngestRequest):
         "chunks_added": chunks_added,
         "total_vectors": total_vectors,
     }
+@app.get("/documents")
+def list_documents():
+    sources = vector_store.list_sources()
+    return {
+        "count": len(sources),
+        "sources": sources
+    }
+
+@app.delete("/documents")
+def delete_document(req: DeleteDocumentRequest):
+    deleted = vector_store.delete_by_source(req.source)
+    total_vectors = vector_store.count()
+
+    return {
+        "status": "deleted",
+        "source": req.source,
+        "total_vectors": total_vectors
+    }
+
+@app.post("/documents/reindex")
+def reindex_document(req: ReindexRequest):
+    source = req.source
+
+    # 1. Delete existing
+    vector_store.delete_by_source(source)
+
+    # 2. Re-ingest based on type
+    if source.lower().endswith(".pdf"):
+        return {
+            "status": "deleted",
+            "message": "Please re-upload the PDF via /ingest/pdf to reindex it.",
+            "source": source
+        }
+
+    if source.startswith("http://") or source.startswith("https://"):
+        # Heuristic: try YouTube first, else web
+        try:
+            if "youtube.com" in source or "youtu.be" in source:
+                chunks = youtube_ingestor.ingest(source)
+                kind = "youtube"
+            else:
+                chunks = web_ingestor.ingest(source)
+                kind = "web"
+        except Exception as e:
+            return {"error": str(e)}
+
+        return {
+            "status": "reindexed",
+            "source": source,
+            "type": kind,
+            "chunks_added": chunks,
+            "total_vectors": vector_store.count()
+        }
+
+    return {"error": "Unknown source type"}
+
 
 
 
