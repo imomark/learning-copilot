@@ -378,7 +378,16 @@ def session_answer(req: SessionAnswerRequest):
     grade_text = response.content.strip()
 
     # Record in session
-    session.record(req.question, req.user_answer, grade_text)
+    # Determine topic
+    topic = session.focus if session.focus else None
+    if not topic and results:
+        # try metadata topic if present
+        topic = results[0].metadata.get("topic")
+    if not topic:
+        topic = "general"
+
+    # Record in session
+    session.record(req.question, req.user_answer, grade_text, topic)
 
     citations = [
         {
@@ -394,4 +403,33 @@ def session_answer(req: SessionAnswerRequest):
         "session_summary": session.summary(),
         "citations": citations
     }
+
+@app.get("/rag/test-me/session/{session_id}/weak-areas")
+def session_weak_areas(session_id: str):
+    session = session_store.get(session_id)
+    if not session:
+        return {"error": "Invalid session_id"}
+
+    ranked = session.weak_areas()
+
+    # Build recommendations (simple heuristic)
+    recommendations = []
+    for item in ranked[:5]:
+        topic = item["topic"]
+        recommendations.append({
+            "topic": topic,
+            "suggested_actions": [
+                f"Run /rag/summarize with focus='{topic}'",
+                f"Run /rag/quiz with focus='{topic}'",
+                f"Run /rag/test-me/session/question with focus='{topic}'"
+            ]
+        })
+
+    return {
+        "session_summary": session.summary(),
+        "topic_stats": session.topic_stats,
+        "ranked_weak_areas": ranked,
+        "recommendations": recommendations
+    }
+
 
