@@ -121,6 +121,14 @@ Content-Type: application/json
   "url": "https://fastapi.tiangolo.com/"
 }
 
+### YouTube ingest
+POST {{baseUrl}}/ingest/youtube
+Content-Type: application/json
+
+{
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+}
+
 ### RAG ask
 POST {{baseUrl}}/rag/ask
 Content-Type: application/json

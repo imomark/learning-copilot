@@ -14,8 +14,10 @@ dependencies = [
     "pypdf>=6.7.0",
     "python-dotenv>=1.2.1",
     "python-multipart>=0.0.22",
+    "pytube>=15.0.0",
     "qdrant-client>=1.16.2",
     "requests>=2.32.5",
     "sqlalchemy>=2.0.46",
     "uvicorn>=0.40.0",
+    "youtube-transcript-api>=1.2.4",
 ]

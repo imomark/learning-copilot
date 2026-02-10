@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.core.config import settings
 from app.ingestion.web_ingestor import WebIngestor
+from app.ingestion.youtube_ingestor import YouTubeIngestor
 from app.llm.gemini import get_gemini_llm
 from app.rag.prompt import build_rag_prompt
 from app.rag.quiz_prompt import build_quiz_prompt
@@ -56,6 +57,10 @@ class SessionAnswerRequest(BaseModel):
 class WebIngestRequest(BaseModel):
     url: str
 
+class YouTubeIngestRequest(BaseModel):
+    url: str
+
+
 
 app = FastAPI(title="AI Learning Copilot")
 # create one global store instance for now
@@ -68,6 +73,9 @@ session_store = DBSessionStore()
 pdf_ingestor = PDFIngestor(vector_store)
 
 web_ingestor = WebIngestor(vector_store)
+
+youtube_ingestor = YouTubeIngestor(vector_store)
+
 
 
 Base.metadata.create_all(bind=engine)
@@ -427,6 +435,24 @@ def ingest_web(req: WebIngestRequest):
         "chunks_added": chunks_added,
         "total_vectors": total_vectors,
     }
+
+@app.post("/ingest/youtube")
+def ingest_youtube(req: YouTubeIngestRequest):
+    url = req.url.strip()
+    if not (url.startswith("http://") or url.startswith("https://")):
+        return {"error": "Invalid URL. Must start with http:// or https://"}
+
+    chunks_added = youtube_ingestor.ingest(url)
+
+    total_vectors = vector_store.count()
+
+    return {
+        "status": "success",
+        "url": url,
+        "chunks_added": chunks_added,
+        "total_vectors": total_vectors,
+    }
+
 
 
 
