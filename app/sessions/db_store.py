@@ -98,3 +98,45 @@ class DBSessionStore:
             return ranked
         finally:
             db.close()
+
+    def topic_difficulty(self, session_id: str, topic: str | None):
+        # Default difficulty
+        if not topic:
+            return "medium"
+
+        db: Session = SessionLocal()
+        try:
+            from app.models import AttemptModel
+            attempts = (
+                db.query(AttemptModel)
+                .filter(AttemptModel.session_id == session_id)
+                .filter(AttemptModel.topic == topic)
+                .all()
+            )
+
+            if not attempts:
+                return "medium"
+
+            correct = 0
+            partial = 0
+            incorrect = 0
+
+            for a in attempts:
+                g = a.grade.lower()
+                if "correct" in g and "partial" not in g:
+                    correct += 1
+                elif "partial" in g:
+                    partial += 1
+                else:
+                    incorrect += 1
+
+            strength = correct - incorrect - 0.5 * partial
+
+            if strength <= -1:
+                return "easy"
+            elif strength >= 2:
+                return "hard"
+            else:
+                return "medium"
+        finally:
+            db.close()

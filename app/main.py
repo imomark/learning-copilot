@@ -368,7 +368,14 @@ def session_question(req: SessionQuestionRequest):
         return {"question": "No knowledge yet.", "citations": []}
 
     context_chunks = [doc.page_content for doc in results]
-    prompt = build_test_question_prompt(context_chunks, s.focus)
+    # Determine topic
+    topic = s.focus or results[0].metadata.get("topic") or "general"
+
+
+    # Compute adaptive difficulty from past performance
+    difficulty = session_store.topic_difficulty(s.id, topic)
+
+    prompt = build_test_question_prompt(context_chunks, s.focus, difficulty)
 
     llm = get_gemini_llm()
     response = llm.invoke(prompt)
@@ -377,6 +384,7 @@ def session_question(req: SessionQuestionRequest):
 
     return {
         "question": response.content.strip(),
+        "difficulty": difficulty,
         "citations": citations,
         "session_summary": session_store.summary(req.session_id),
     }
