@@ -1,3 +1,5 @@
+import os
+
 from qdrant_client import QdrantClient
 from langchain_qdrant import QdrantVectorStore
 from app.embeddings.gemini_embeddings import get_embedding_model
@@ -5,12 +7,28 @@ from qdrant_client.http import models
 
 class QdrantStore:
     def __init__(self):
-        # In-memory Qdrant for now
-        self.client = QdrantClient(":memory:")
+        db_path = os.path.join(os.getcwd(), "data", "qdrant")
+        self.client = QdrantClient(path=db_path)
         self.collection_name = "learning_copilot"
         self.embeddings = get_embedding_model()
 
         self.store: QdrantVectorStore | None = None
+        self._attach_if_exists()
+
+    def _attach_if_exists(self):
+        try:
+            self.client.get_collection(self.collection_name)
+            # If this does not throw, collection exists
+            self.store = QdrantVectorStore(
+                client=self.client,
+                collection_name=self.collection_name,
+                embedding=self.embeddings,
+            )
+            print(f"[QdrantStore] Attached to existing collection: {self.collection_name}")
+        except Exception:
+            # Collection does not exist yet
+            print(f"[QdrantStore] No existing collection found. Will create on first ingest.")
+            self.store = None
 
 
 
