@@ -43,3 +43,12 @@ Content-Type: application/json
 {
   "question": "What is this document about?"
 }
+
+### RAG summarize
+POST {{baseUrl}}/rag/summarize
+Content-Type: application/json
+
+{
+  "focus": "fastapi",
+  "k": 5
+}

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from app.core.config import settings
 from app.llm.gemini import get_gemini_llm
 from app.rag.prompt import build_rag_prompt
+from app.rag.summarize_prompt import build_summarize_prompt
 from app.vectorstore.qdrant_store import QdrantStore
 from pydantic import BaseModel
 from fastapi import UploadFile, File
@@ -14,7 +15,9 @@ class SearchRequest(BaseModel):
 class AskRequest(BaseModel):
     question: str
 
-
+class SummarizeRequest(BaseModel):
+    focus: str | None = None
+    k: int = 5
 
 app = FastAPI(title="AI Learning Copilot")
 # create one global store instance for now
@@ -130,6 +133,45 @@ async def ingest_pdf(file: UploadFile = File(...)):
         "chunks_added": chunks_added,
         "total_vectors": total_vectors,
     }
+
+@app.post("/rag/summarize")
+def rag_summarize(req: SummarizeRequest):
+    # 1. Retrieve relevant docs
+    # If focus is provided, use it as the retrieval query; otherwise use a generic query
+    query = req.focus if req.focus else "Summarize the main topics of the documents"
+
+    results = vector_store.search(query=query, k=req.k)
+
+    if not results:
+        return {
+            "summary": "I don't have any knowledge yet. Please ingest some documents first.",
+            "citations": []
+        }
+
+    # 2. Extract text for context
+    context_chunks = [doc.page_content for doc in results]
+
+    # 3. Build prompt
+    prompt = build_summarize_prompt(context_chunks, req.focus)
+
+    # 4. Call Gemini
+    llm = get_gemini_llm()
+    response = llm.invoke(prompt)
+
+    # 5. Build structured citations
+    citations = []
+    for doc in results:
+        citations.append({
+            "chunk_id": doc.metadata.get("chunk_id"),
+            "source": doc.metadata.get("source"),
+            "page": doc.metadata.get("page"),
+        })
+
+    return {
+        "summary": response.content,
+        "citations": citations
+    }
+
 
 
 
