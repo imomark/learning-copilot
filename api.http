@@ -62,3 +62,22 @@ Content-Type: application/json
   "k": 5,
   "num_questions": 5
 }
+
+### RAG test-me question
+POST {{baseUrl}}/rag/test-me/question
+Content-Type: application/json
+
+{
+  "focus": "fastapi",
+  "k": 5
+}
+
+### RAG test-me answer
+POST {{baseUrl}}/rag/test-me/answer
+Content-Type: application/json
+
+{
+  "question": "What is FastAPI?",
+  "user_answer": "FastAPI is a Python web framework for building APIs.",
+  "k": 5
+}

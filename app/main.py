@@ -4,6 +4,7 @@ from app.llm.gemini import get_gemini_llm
 from app.rag.prompt import build_rag_prompt
 from app.rag.quiz_prompt import build_quiz_prompt
 from app.rag.summarize_prompt import build_summarize_prompt
+from app.rag.test_prompt import build_test_question_prompt, build_test_grader_prompt
 from app.vectorstore.qdrant_store import QdrantStore
 from pydantic import BaseModel
 from fastapi import UploadFile, File
@@ -24,6 +25,16 @@ class QuizRequest(BaseModel):
     focus: str | None = None   # e.g., "Kafka architecture"
     k: int = 5                 # how many chunks to retrieve
     num_questions: int = 5     # how many questions to generate
+
+class TestQuestionRequest(BaseModel):
+    focus: str | None = None
+    k: int = 5
+
+class TestAnswerRequest(BaseModel):
+    question: str
+    user_answer: str
+    k: int = 5
+
 
 
 app = FastAPI(title="AI Learning Copilot")
@@ -218,4 +229,68 @@ def rag_quiz(req: QuizRequest):
     }
 
 
+@app.post("/rag/test-me/question")
+def test_me_question(req: TestQuestionRequest):
+    query = req.focus if req.focus else "Generate a challenging question from the documents"
 
+    results = vector_store.search(query=query, k=req.k)
+
+    if not results:
+        return {
+            "question": "I don't have any knowledge yet. Please ingest some documents first.",
+            "citations": []
+        }
+
+    context_chunks = [doc.page_content for doc in results]
+
+    prompt = build_test_question_prompt(context_chunks, req.focus)
+
+    llm = get_gemini_llm()
+    response = llm.invoke(prompt)
+
+    citations = [
+        {
+            "chunk_id": doc.metadata.get("chunk_id"),
+            "source": doc.metadata.get("source"),
+            "page": doc.metadata.get("page"),
+        }
+        for doc in results
+    ]
+
+    return {
+        "question": response.content.strip(),
+        "citations": citations
+    }
+
+@app.post("/rag/test-me/answer")
+def test_me_answer(req: TestAnswerRequest):
+    # Retrieve context again (simple stateless approach)
+    results = vector_store.search(query=req.question, k=req.k)
+
+    if not results:
+        return {
+            "grade": "Unknown",
+            "feedback": "No relevant context found to grade this answer.",
+            "citations": []
+        }
+
+    context_chunks = [doc.page_content for doc in results]
+
+    prompt = build_test_grader_prompt(context_chunks, req.question, req.user_answer)
+
+    llm = get_gemini_llm()
+    response = llm.invoke(prompt)
+
+    citations = [
+        {
+            "chunk_id": doc.metadata.get("chunk_id"),
+            "source": doc.metadata.get("source"),
+            "page": doc.metadata.get("page"),
+        }
+        for doc in results
+    ]
+
+    return {
+        "grade_and_feedback": response.content.strip(),
+        "citations": citations
+    }
