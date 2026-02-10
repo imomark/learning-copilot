@@ -81,3 +81,31 @@ Content-Type: application/json
   "user_answer": "FastAPI is a Python web framework for building APIs.",
   "k": 5
 }
+
+### RAG test-me session start
+POST {{baseUrl}}/rag/test-me/session/start
+Content-Type: application/json
+
+{
+  "focus": "fastapi"
+}
+
+### RAG test-me session question
+POST {{baseUrl}}/rag/test-me/session/question
+Content-Type: application/json
+
+{
+  "session_id": "59d87216-14de-433a-a7f0-ea8db2ead216",
+  "k": 5
+}
+
+### RAG test-me session answer
+POST {{baseUrl}}/rag/test-me/session/answer
+Content-Type: application/json
+
+{
+  "session_id": "59d87216-14de-433a-a7f0-ea8db2ead216",
+  "question": "Based on the provided context, how does the FastAPI backend facilitate the routing of user requests to the appropriate processing pipelines within the AI Learning Copilot system?",
+  "user_answer": "I dont know",
+  "k": 5
+}

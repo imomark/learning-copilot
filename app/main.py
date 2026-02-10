@@ -5,6 +5,7 @@ from app.rag.prompt import build_rag_prompt
 from app.rag.quiz_prompt import build_quiz_prompt
 from app.rag.summarize_prompt import build_summarize_prompt
 from app.rag.test_prompt import build_test_question_prompt, build_test_grader_prompt
+from app.sessions.store import SessionStore
 from app.vectorstore.qdrant_store import QdrantStore
 from pydantic import BaseModel
 from fastapi import UploadFile, File
@@ -35,11 +36,26 @@ class TestAnswerRequest(BaseModel):
     user_answer: str
     k: int = 5
 
+class StartSessionRequest(BaseModel):
+    focus: str | None = None
+
+class SessionQuestionRequest(BaseModel):
+    session_id: str
+    k: int = 5
+
+class SessionAnswerRequest(BaseModel):
+    session_id: str
+    question: str
+    user_answer: str
+    k: int = 5
+
+
 
 
 app = FastAPI(title="AI Learning Copilot")
 # create one global store instance for now
 vector_store = QdrantStore()
+session_store = SessionStore()
 
 pdf_ingestor = PDFIngestor(vector_store)
 
@@ -294,3 +310,88 @@ def test_me_answer(req: TestAnswerRequest):
         "grade_and_feedback": response.content.strip(),
         "citations": citations
     }
+
+@app.post("/rag/test-me/session/start")
+def start_test_session(req: StartSessionRequest):
+    session = session_store.create(req.focus)
+    return {
+        "session_id": session.id,
+        "focus": session.focus
+    }
+
+@app.post("/rag/test-me/session/question")
+def session_question(req: SessionQuestionRequest):
+    session = session_store.get(req.session_id)
+    if not session:
+        return {"error": "Invalid session_id"}
+
+    query = session.focus if session.focus else "Generate a challenging question from the documents"
+    results = vector_store.search(query=query, k=req.k)
+
+    if not results:
+        return {
+            "question": "I don't have any knowledge yet. Please ingest some documents first.",
+            "citations": []
+        }
+
+    context_chunks = [doc.page_content for doc in results]
+    prompt = build_test_question_prompt(context_chunks, session.focus)
+
+    llm = get_gemini_llm()
+    response = llm.invoke(prompt)
+
+    citations = [
+        {
+            "chunk_id": doc.metadata.get("chunk_id"),
+            "source": doc.metadata.get("source"),
+            "page": doc.metadata.get("page"),
+        }
+        for doc in results
+    ]
+
+    return {
+        "question": response.content.strip(),
+        "citations": citations,
+        "session_summary": session.summary()
+    }
+
+@app.post("/rag/test-me/session/answer")
+def session_answer(req: SessionAnswerRequest):
+    session = session_store.get(req.session_id)
+    if not session:
+        return {"error": "Invalid session_id"}
+
+    results = vector_store.search(query=req.question, k=req.k)
+    if not results:
+        return {
+            "grade_and_feedback": "No relevant context found to grade this answer.",
+            "session_summary": session.summary(),
+            "citations": []
+        }
+
+    context_chunks = [doc.page_content for doc in results]
+    prompt = build_test_grader_prompt(context_chunks, req.question, req.user_answer)
+
+    llm = get_gemini_llm()
+    response = llm.invoke(prompt)
+
+    grade_text = response.content.strip()
+
+    # Record in session
+    session.record(req.question, req.user_answer, grade_text)
+
+    citations = [
+        {
+            "chunk_id": doc.metadata.get("chunk_id"),
+            "source": doc.metadata.get("source"),
+            "page": doc.metadata.get("page"),
+        }
+        for doc in results
+    ]
+
+    return {
+        "grade_and_feedback": grade_text,
+        "session_summary": session.summary(),
+        "citations": citations
+    }
+
