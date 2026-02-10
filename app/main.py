@@ -411,6 +411,9 @@ def session_answer(req: SessionAnswerRequest):
 
     session_store.record_attempt(req.session_id, req.question, req.user_answer, grade_text, topic)
 
+    # Update spaced repetition schedule
+    session_store.update_review_schedule(req.session_id, topic, grade_text)
+
     citations = [{"chunk_id": d.metadata.get("chunk_id"), "source": d.metadata.get("source"), "page": d.metadata.get("page")} for d in results]
 
     return {
@@ -532,6 +535,60 @@ def reindex_document(req: ReindexRequest):
         }
 
     return {"error": "Unknown source type"}
+
+@app.get("/rag/review/due")
+def review_due(session_id: str, k: int = 5):
+    s = session_store.get(session_id)
+    if not s:
+        return {"error": "Invalid session_id"}
+
+    due_topics = session_store.due_topics(session_id)
+
+    if not due_topics:
+        return {
+            "message": "Nothing due for review right now 🎉",
+            "due_topics": []
+        }
+
+    # Pick the most urgent topic (first one)
+    topic = due_topics[0]
+
+    # Retrieve context only from that topic
+    results = vector_store.search(
+        query=f"Review {topic}",
+        k=k,
+        sources=None,  # or keep as-is; later we can map topic->sources
+    )
+
+    if not results:
+        return {"error": f"No content found for topic '{topic}'"}
+
+    context_chunks = [doc.page_content for doc in results]
+
+    # Use adaptive difficulty for this topic
+    difficulty = session_store.topic_difficulty(session_id, topic)
+
+    prompt = build_test_question_prompt(context_chunks, topic, difficulty)
+
+    llm = get_gemini_llm()
+    response = llm.invoke(prompt)
+
+    citations = [
+        {
+            "chunk_id": d.metadata.get("chunk_id"),
+            "source": d.metadata.get("source"),
+            "page": d.metadata.get("page"),
+        }
+        for d in results
+    ]
+
+    return {
+        "topic": topic,
+        "difficulty": difficulty,
+        "question": response.content.strip(),
+        "citations": citations
+    }
+
 
 
 

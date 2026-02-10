@@ -2,6 +2,9 @@ import uuid
 from sqlalchemy.orm import Session
 from app.db import SessionLocal
 from app.models import TestSessionModel, AttemptModel
+from datetime import datetime, timedelta
+from app.models import ReviewScheduleModel
+
 
 class DBSessionStore:
     def create(self, focus: str | None):
@@ -140,3 +143,59 @@ class DBSessionStore:
                 return "medium"
         finally:
             db.close()
+    def update_review_schedule(self, session_id: str, topic: str, grade: str):
+        db: Session = SessionLocal()
+        try:
+            sched = (
+                db.query(ReviewScheduleModel)
+                .filter(ReviewScheduleModel.session_id == session_id)
+                .filter(ReviewScheduleModel.topic == topic)
+                .first()
+            )
+
+            if not sched:
+                sched = ReviewScheduleModel(
+                    session_id=session_id,
+                    topic=topic,
+                    interval_days=1,
+                    ease_factor=2.5,
+                    next_review_at=datetime.utcnow(),
+                )
+                db.add(sched)
+                db.commit()
+                db.refresh(sched)
+
+            g = grade.lower()
+
+            if "correct" in g and "partial" not in g:
+                # successful recall → increase interval
+                sched.interval_days = int(sched.interval_days * sched.ease_factor)
+                sched.ease_factor = min(sched.ease_factor + 0.1, 3.0)
+            elif "partial" in g:
+                # small progress
+                sched.interval_days = max(1, int(sched.interval_days * 1.2))
+            else:
+                # failed recall → reset
+                sched.interval_days = 1
+                sched.ease_factor = max(1.3, sched.ease_factor - 0.2)
+
+            sched.next_review_at = datetime.utcnow() + timedelta(days=sched.interval_days)
+
+            db.commit()
+        finally:
+            db.close()
+
+    def due_topics(self, session_id: str):
+        db: Session = SessionLocal()
+        try:
+            now = datetime.utcnow()
+            rows = (
+                db.query(ReviewScheduleModel)
+                .filter(ReviewScheduleModel.session_id == session_id)
+                .filter(ReviewScheduleModel.next_review_at <= now)
+                .all()
+            )
+            return [r.topic for r in rows]
+        finally:
+            db.close()
+

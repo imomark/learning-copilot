@@ -1,6 +1,19 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db import Base
+from sqlalchemy import DateTime, Float
+from datetime import datetime
+
+class ReviewScheduleModel(Base):
+    __tablename__ = "review_schedules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True)
+    topic = Column(String, index=True)
+
+    interval_days = Column(Integer, default=1)
+    ease_factor = Column(Float, default=2.5)
+    next_review_at = Column(DateTime, default=datetime.utcnow)
 
 class TestSessionModel(Base):
     __tablename__ = "test_sessions"
